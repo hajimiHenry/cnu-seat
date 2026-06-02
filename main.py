@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 # ============================================================
 STUDENT_ID = os.environ.get("CNU_STUDENT_ID", "你的学号")
 PASSWORD = os.environ.get("CNU_PASSWORD", "你的图书馆密码")
-START_TIME = "07:00"
+START_TIME = "10:30"
 END_TIME = "22:50"
 TEST_NAME = "自习"
 

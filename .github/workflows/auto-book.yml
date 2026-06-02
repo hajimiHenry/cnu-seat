@@ -1,0 +1,28 @@
+name: CNU 座位自动预约
+
+on:
+  schedule:
+    # 每天北京时间 00:00 (UTC 16:00)
+    - cron: '0 16 * * *'
+  workflow_dispatch:  # 允许手动触发测试
+
+jobs:
+  book:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt
+
+      - name: 预约座位
+        env:
+          CNU_STUDENT_ID: ${{ secrets.CNU_STUDENT_ID }}
+          CNU_PASSWORD: ${{ secrets.CNU_PASSWORD }}
+        run: python main.py

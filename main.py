@@ -54,11 +54,32 @@ def encrypt_password(password: str, nonce: str, public_key_b64: str) -> str:
     return base64.b64encode(encrypted).decode()
 
 
+def api_get(session, url, **kw):
+    """带调试的 GET 请求"""
+    resp = session.get(url, timeout=15, **kw)
+    if resp.status_code != 200:
+        raise Exception(f"HTTP {resp.status_code}: {resp.text[:200]}")
+    try:
+        return resp.json()
+    except Exception:
+        raise Exception(f"非JSON响应: {resp.text[:300]}")
+
+
+def api_post_json(session, url, json_data, **kw):
+    """带调试的 POST 请求"""
+    resp = session.post(url, json=json_data, timeout=15, **kw)
+    if resp.status_code != 200:
+        raise Exception(f"HTTP {resp.status_code}: {resp.text[:200]}")
+    try:
+        return resp.json()
+    except Exception:
+        raise Exception(f"非JSON响应: {resp.text[:300]}")
+
+
 def login(session: requests.Session) -> tuple[str, int]:
     """登录获取 token 和 accNo"""
     log("获取公钥...")
-    resp = session.get(f"{BASE_URL}/login/publicKey", headers={"lan": "1"})
-    data = resp.json()
+    data = api_get(session, f"{BASE_URL}/login/publicKey", headers={"lan": "1"})
     if data["code"] != 0:
         raise Exception(f"获取公钥失败: {data['message']}")
 
@@ -68,17 +89,12 @@ def login(session: requests.Session) -> tuple[str, int]:
     encrypted_pwd = encrypt_password(PASSWORD, nonce_str, public_key)
 
     log("登录中...")
-    resp = session.post(
-        f"{BASE_URL}/login/user",
-        json={
-            "logonName": STUDENT_ID,
-            "password": encrypted_pwd,
-            "captcha": "",
-            "consoleType": 16,
-        },
-        headers={"lan": "1"},
-    )
-    data = resp.json()
+    data = api_post_json(session, f"{BASE_URL}/login/user", {
+        "logonName": STUDENT_ID,
+        "password": encrypted_pwd,
+        "captcha": "",
+        "consoleType": 16,
+    }, headers={"lan": "1"})
     if data["code"] != 0:
         raise Exception(f"登录失败: {data['message']}")
 
@@ -150,6 +166,10 @@ def main():
         sys.exit(1)
 
     session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
+        "Referer": "https://selfservice.cnu.edu.cn/",
+    })
 
     # 1. 登录
     try:

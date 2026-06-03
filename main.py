@@ -17,8 +17,8 @@ from cryptography.hazmat.primitives.asymmetric import padding
 # ============================================================
 # 配置区 - 通过环境变量(GitHub Secrets)或直接填写
 # ============================================================
-STUDENT_ID = os.environ.get("CNU_STUDENT_ID", "你的学号")
-PASSWORD = os.environ.get("CNU_PASSWORD", "你的图书馆密码")
+STUDENT_ID = "1251001025"
+PASSWORD = "ctsg233738"
 START_TIME = "10:30"
 END_TIME = "22:50"
 TEST_NAME = "自习"

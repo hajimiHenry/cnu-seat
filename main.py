@@ -1,7 +1,7 @@
 """
 首都师范大学图书馆座位自动预约脚本
 纯 HTTP 请求，无头运行，适合 Termux (Android) 配合 cron 使用
-每天 07:00:30 自动预约当天座位（学校 7:00 开放预约）
+每天 06:28 cron 触发，06:29:00 开始高频抢占，持续 3 分钟（学校 6:30 开放）
 """
 
 import base64
@@ -133,7 +133,6 @@ def find_free_seat(seats: list, name_min: str = None, name_max: str = None) -> d
             continue
         if name_max is not None and seat_code > name_max:
             continue
-        log(f"  全天空闲: {name} (devId={seat['devId']})")
         return seat
     return None
 
@@ -185,47 +184,51 @@ def main():
     today = now.strftime("%Y%m%d")
     log(f"目标: {today} {START_TIME}-{END_TIME}")
 
-    # 3. 按优先级逐个区域+座位范围尝试
+    # 3. 等待到 06:29:00 再开始
+    target = now.replace(hour=6, minute=29, second=0, microsecond=0)
+    wait_sec = (target - datetime.now(TZ)).total_seconds()
+    if wait_sec > 0:
+        log(f"等待至 {target.strftime('%H:%M:%S')} 开始抢占...")
+        time.sleep(wait_sec)
+    else:
+        log("已过 06:29，立即开始抢占")
+
+    # 4. 高频抢占：持续 3 分钟，每秒 3 轮
+    deadline = datetime.now(TZ) + timedelta(minutes=3)
+    attempt = 0
     booked = False
-    for desc, room_id, name_min, name_max in PRIORITY:
-        log(f"查询 {desc}...")
-        try:
-            seats = get_available_seats(session, room_id, today)
-        except Exception as e:
-            log(f"  查询失败: {e}")
-            time.sleep(2)
-            continue
+    log(f"开始抢占，截止 {deadline.strftime('%H:%M:%S')}")
 
-        seat = find_free_seat(seats, name_min, name_max)
-        if not seat:
-            log(f"  无符合条件的全天空闲座位")
-            continue
+    while datetime.now(TZ) < deadline:
+        attempt += 1
+        for desc, room_id, name_min, name_max in PRIORITY:
+            try:
+                seats = get_available_seats(session, room_id, today)
+            except Exception:
+                continue
 
-        room_name = seat.get("roomName", "")
-        dev_id = seat["devId"]
-        dev_name = seat["devName"]
-        log(f"  尝试预约 {room_name}/{dev_name} (devId={dev_id})...")
+            seat = find_free_seat(seats, name_min, name_max)
+            if not seat:
+                continue
 
-        try:
-            result = book_seat(session, dev_id, acc_no, today, START_TIME, END_TIME)
-        except Exception as e:
-            log(f"  请求异常: {e}")
-            time.sleep(2)
-            continue
+            dev_id = seat["devId"]
+            try:
+                result = book_seat(session, dev_id, acc_no, today, START_TIME, END_TIME)
+            except Exception:
+                continue
 
-        if result["code"] == 0:
-            log(f"[OK] 预约成功!")
-            log(f"  座位: {dev_name} ({room_name})")
-            log(f"  时间: {today} {START_TIME}-{END_TIME}")
-            log(f"  编号: {result['data']['resvId']}")
-            booked = True
+            if result["code"] == 0:
+                log(f"[OK] 第{attempt}轮 {desc}: {seat['devName']} 预约成功!")
+                log(f"  编号: {result['data']['resvId']}")
+                booked = True
+                break
+
+        if booked:
             break
-        else:
-            log(f"  预约失败: {result['message']}")
-            time.sleep(1)
+        time.sleep(0.33)
 
     if not booked:
-        log("[FAIL] 所有优先级均无符合条件的座位，放弃预约")
+        log(f"[FAIL] 3 分钟内共 {attempt} 轮均未成功")
         sys.exit(1)
 
     log("===== 完成 =====")

@@ -5,7 +5,6 @@
 """
 
 import base64
-import os
 import sys
 import time
 from datetime import datetime, timezone, timedelta
@@ -106,15 +105,11 @@ def login(session: requests.Session) -> tuple[str, int]:
 
 def get_available_seats(session: requests.Session, room_id: int, date_str: str) -> list:
     """获取指定区域当天的座位状态"""
-    resp = session.get(
-        f"{BASE_URL}/reserve",
-        params={
-            "roomIds": room_id,
-            "resvDates": date_str,
-            "sysKind": 8,
-        },
-    )
-    data = resp.json()
+    data = api_get(session, f"{BASE_URL}/reserve", params={
+        "roomIds": room_id,
+        "resvDates": date_str,
+        "sysKind": 8,
+    })
     if data["code"] != 0:
         raise Exception(f"查询座位失败: {data['message']}")
     return data["data"]
@@ -140,7 +135,7 @@ def find_free_seat(seats: list, name_min: str = None, name_max: str = None) -> d
 def book_seat(session: requests.Session, dev_id: int, acc_no: int, date_str: str,
               start_time: str, end_time: str) -> dict:
     """提交预约"""
-    payload = {
+    return api_post_json(session, f"{BASE_URL}/reserve", {
         "sysKind": 8,
         "appAccNo": acc_no,
         "memberKind": 1,
@@ -152,9 +147,7 @@ def book_seat(session: requests.Session, dev_id: int, acc_no: int, date_str: str
         "resvProperty": 0,
         "resvDev": [dev_id],
         "memo": "",
-    }
-    resp = session.post(f"{BASE_URL}/reserve", json=payload)
-    return resp.json()
+    })
 
 
 def main():

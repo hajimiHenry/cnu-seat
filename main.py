@@ -32,10 +32,6 @@ TZ = timezone(timedelta(hours=8))
 PRIORITY = [
     ("B区 B017-B040", 128255038, "2B017", "2B040"),
     ("A区 A001-A013", 128255037, "2A001", "2A013"),
-    ("C区 全部",      128255039, None,   None),
-    ("D区 全部",      128255040, None,   None),
-    ("E区 全部",      128255041, None,   None),
-    ("F区 全部",      128255042, None,   None),
     ("G区 全部",      128255043, None,   None),
     ("H区 全部",      128255044, None,   None),
     ("A区 兜底",      128255037, None,   None),

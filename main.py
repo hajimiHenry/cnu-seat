@@ -1,7 +1,7 @@
 """
 首都师范大学图书馆座位自动预约脚本
 纯 HTTP 请求，无头运行，适合 Termux (Android) 配合 cron 使用
-每天 06:55 cron 触发，06:59:00 开始高频抢占，持续 3 分钟（学校 7:00 开放）
+每天 06:25 cron 触发，06:29:00 开始高频抢占，持续 3 分钟（学校 6:30 开放）
 """
 
 import base64
@@ -178,7 +178,7 @@ def main():
     log(f"目标: {today} {START_TIME}-{END_TIME}")
 
     # 3. 等待到 06:29:00 再开始
-    target = now.replace(hour=6, minute=59, second=0, microsecond=0)
+    target = now.replace(hour=6, minute=29, second=0, microsecond=0)
     wait_sec = (target - datetime.now(TZ)).total_seconds()
     if wait_sec > 0:
         log(f"等待至 {target.strftime('%H:%M:%S')} 开始抢占...")
@@ -197,8 +197,19 @@ def main():
         for desc, room_id, name_min, name_max in PRIORITY:
             try:
                 seats = get_available_seats(session, room_id, today)
-            except Exception:
+            except Exception as e:
+                if attempt <= 3:
+                    log(f"  [{desc}] 查询异常: {e}")
                 continue
+
+            # 前 3 轮输出调试：返回了多少座位，哪些是空闲的
+            if attempt <= 3:
+                free_names = []
+                for s in seats:
+                    r = s.get("resvInfo") or []
+                    if len(r) == 0:
+                        free_names.append(s["devName"])
+                log(f"  [{desc}] 共{len(seats)}个座位, 空闲{len(free_names)}个: {free_names[:5]}...")
 
             seat = find_free_seat(seats, name_min, name_max)
             if not seat:

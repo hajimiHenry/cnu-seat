@@ -1,7 +1,7 @@
 """
 首都师范大学图书馆座位自动预约脚本
 纯 HTTP 请求，无头运行，适合 Termux (Android) 配合 cron 使用
-每天 06:28 cron 触发，06:29:00 开始高频抢占，持续 3 分钟（学校 6:30 开放）
+每天 06:55 cron 触发，06:59:00 开始高频抢占，持续 3 分钟（学校 7:00 开放）
 """
 
 import base64
@@ -178,7 +178,7 @@ def main():
     log(f"目标: {today} {START_TIME}-{END_TIME}")
 
     # 3. 等待到 06:29:00 再开始
-    target = now.replace(hour=6, minute=29, second=0, microsecond=0)
+    target = now.replace(hour=6, minute=59, second=0, microsecond=0)
     wait_sec = (target - datetime.now(TZ)).total_seconds()
     if wait_sec > 0:
         log(f"等待至 {target.strftime('%H:%M:%S')} 开始抢占...")

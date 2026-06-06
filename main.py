@@ -181,16 +181,16 @@ def main():
     today = now.strftime("%Y%m%d")
     log(f"目标: {today} {START_TIME}-{END_TIME}")
 
-    # 3. 等待到 06:29:00 再开始
-    target = now.replace(hour=6, minute=29, second=0, microsecond=0)
+    # 3. 等待到 06:29:58 再开始（仅预留 2 秒给首次查询的网络延迟）
+    target = now.replace(hour=6, minute=29, second=58, microsecond=0)
     wait_sec = (target - datetime.now(TZ)).total_seconds()
     if wait_sec > 0:
         log(f"等待至 {target.strftime('%H:%M:%S')} 开始抢占...")
         time.sleep(wait_sec)
     else:
-        log("已过 06:29，立即开始抢占")
+        log("已过 06:29:58，立即开始抢占")
 
-    # 4. 高频抢占：持续 3 分钟，每秒 3 轮
+    # 4. 高频抢占：持续 3 分钟
     deadline = datetime.now(TZ) + timedelta(minutes=3)
     attempt = 0
     booked = False
@@ -202,11 +202,10 @@ def main():
             try:
                 seats = get_available_seats(session, room_id, today)
             except Exception as e:
-                if attempt <= 3:
+                if attempt <= 5:
                     log(f"  [{desc}] 查询异常: {e}")
                 continue
 
-            # 前 3 轮输出调试：返回了多少座位，哪些是空闲的
             if attempt <= 3:
                 free_names = []
                 for s in seats:
@@ -222,7 +221,9 @@ def main():
             dev_id = seat["devId"]
             try:
                 result = book_seat(session, dev_id, acc_no, today, START_TIME, END_TIME)
-            except Exception:
+            except Exception as e:
+                if attempt <= 5:
+                    log(f"  [{desc}] 预约异常: {e}")
                 continue
 
             if result["code"] == 0:
@@ -230,10 +231,13 @@ def main():
                 log(f"  编号: {result['data']['resvId']}")
                 booked = True
                 break
+            else:
+                if attempt <= 5:
+                    log(f"  [{desc}] 预约被拒: {result['message']}")
 
         if booked:
             break
-        time.sleep(0.33)
+        time.sleep(0.15)
 
     if not booked:
         log(f"[FAIL] 3 分钟内共 {attempt} 轮均未成功")

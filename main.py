@@ -152,6 +152,27 @@ def book_seat(session: requests.Session, dev_id: int, acc_no: int, date_str: str
     })
 
 
+def wait_until(target: datetime):
+    """睡眠到目标时间，每60秒打印一次心跳"""
+    while True:
+        remaining = (target - datetime.now(TZ)).total_seconds()
+        if remaining <= 0:
+            return
+        if remaining > 60:
+            log(f"  等待中... 距目标还有 {int(remaining//60)} 分 {int(remaining%60)} 秒")
+            time.sleep(60)
+        else:
+            time.sleep(remaining)
+            return
+
+
+def do_login(session: requests.Session) -> tuple[str, int]:
+    """登录并更新 session header，返回 (token, accNo)"""
+    token, acc_no = login(session)
+    session.headers.update({"token": token})
+    return token, acc_no
+
+
 def main():
     log("===== CNU 座位自动预约 =====")
 
@@ -165,26 +186,58 @@ def main():
         "Referer": "https://selfservice.cnu.edu.cn/",
     })
 
-    # 1. 登录
+    now = datetime.now(TZ)
+
+    # 确定抢座目标日期和各时间节点
+    # 如果当前已过 06:30，目标设为明天；否则设为今天
+    if now.hour > 6 or (now.hour == 6 and now.minute >= 30):
+        target_date = now + timedelta(days=1)
+    else:
+        target_date = now
+
+    target_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    t_first_login = target_day.replace(hour=6, minute=0)   # 06:00 第一次登录
+    t_refresh     = target_day.replace(hour=6, minute=25)  # 06:25 刷新token
+    t_start       = target_day.replace(hour=6, minute=29, second=58)  # 06:29:58 开抢
+
+    today = target_date.strftime("%Y%m%d")
+    log(f"目标日期: {today}  预约时段: {START_TIME}-{END_TIME}")
+    log(f"计划: 立即登录 → 06:00 刷新token → 06:25 再次刷新 → 06:29:58 开抢")
+
+    # 0. 启动时立即登录一次，验证账号可用
     try:
-        token, acc_no = login(session)
+        log("--- 启动登录 ---")
+        token, acc_no = do_login(session)
     except Exception as e:
-        log(f"登录失败: {e}")
+        log(f"启动登录失败: {e}")
         sys.exit(1)
 
-    session.headers.update({"token": token})
+    # 1. 等待到 06:00，刷新 token
+    if datetime.now(TZ) < t_first_login:
+        log(f"等待至 {t_first_login.strftime('%H:%M:%S')} 刷新token...")
+        wait_until(t_first_login)
 
-    # 2. 日期（北京时间）
-    now = datetime.now(TZ)
-    today = now.strftime("%Y%m%d")
-    log(f"目标: {today} {START_TIME}-{END_TIME}")
+        try:
+            log("--- 06:00 刷新token ---")
+            token, acc_no = do_login(session)
+        except Exception as e:
+            log(f"06:00 刷新token失败: {e}，使用旧token继续")
 
-    # 3. 等待到 06:29:58 再开始（仅预留 2 秒给首次查询的网络延迟）
-    target = now.replace(hour=6, minute=29, second=58, microsecond=0)
-    wait_sec = (target - datetime.now(TZ)).total_seconds()
-    if wait_sec > 0:
-        log(f"等待至 {target.strftime('%H:%M:%S')} 开始抢占...")
-        time.sleep(wait_sec)
+    # 2. 等待到 06:25，再次刷新 token
+    if datetime.now(TZ) < t_refresh:
+        log(f"等待至 {t_refresh.strftime('%H:%M:%S')} 再次刷新token...")
+        wait_until(t_refresh)
+
+        try:
+            log("--- 06:25 刷新token ---")
+            token, acc_no = do_login(session)
+        except Exception as e:
+            log(f"06:25 刷新token失败: {e}，使用旧token继续")
+
+    # 3. 等待到 06:29:58 开始抢占
+    if datetime.now(TZ) < t_start:
+        log(f"等待至 {t_start.strftime('%H:%M:%S')} 开始抢占...")
+        wait_until(t_start)
     else:
         log("已过 06:29:58，立即开始抢占")
 

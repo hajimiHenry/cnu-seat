@@ -18,7 +18,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 # ============================================================
 STUDENT_ID = "1251001025"
 PASSWORD = "ctsg233738"
-START_TIME = "13:30"
+START_TIME = "18:30"
 END_TIME = "22:50"
 TEST_NAME = "自习"
 
